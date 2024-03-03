@@ -15,7 +15,7 @@
     - [Practice Test \& Solution - Pods](#practice-test--solution---pods)
     - [Edit Pods (for practial quizzes)](#edit-pods-for-practial-quizzes)
     - [Recap - ReplicaSets, Controllers](#recap---replicasets-controllers)
-    - [Practice Test - ReplicaSets](#practice-test---replicasets)
+    - [Practice Test \& Solution - ReplicaSets](#practice-test--solution---replicasets)
     - [Solution - ReplicaSets](#solution---replicasets)
 
 
@@ -168,8 +168,98 @@ spec:
   - Also help in load balancing & scaling as user demand increases. Replication controller can spans accross multiple nodes in a single cluster
   - Two similar terms: Replication Controller (older) and Replica Set (newer). Minor differences in the way it works, but main concept still same
   - Creating Replication Controller:
-  - 
+    - Define yml file
+      ```yaml
+      apiVersion: v1
+      kind: ReplicationController
+      metadata:
+        name: myapp-rc
+        labels: 
+          app: myapp
+          type: frontend
+        spec:
+          template: #should be what our pod definiton be, similar to previous exercies (`pod-definition.yaml`)
+            metadata: 
+              name: myapp-pod
+              labels: 
+                app: myapp
+                type: front-end
+            spec:
+              containers:
+                - name: nginx-container 
+                  image: nginx
+            replicas: 3
+      ```
+    - Create from yml file
+    ```bash
+    kubectl create -f rc-definition.yml
+    ```
+    - Get replicationcontroller information
+    ```bash
+    kubectl get replicationcontroller
+    kubectl get pods
+    ```
+  - Now, Creating ReplicaSet (newer):
+    - Major difference: `selector` field. 
+      - This allows ReplicaSet to manage pods that were not created as part of the replicaset creation.
+      - For example: pods created before or after the replicaset creation that matches `matchLabels` can be managed by ReplicaSet
+    - Define yml file
+      ```yaml
+      apiVersion: apps/v1
+      kind: ReplicaSet
+      metadata:
+        name: myapp-replicaset
+        labels: 
+          app: myapp
+          type: frontend
+      spec:
+        template: #should be what our pod definiton be, similar to previous exercies (`pod-definition.yaml`)
+          metadata: 
+            name: myapp-pod
+            labels: 
+              app: myapp
+              type: front-end
+          spec:
+            containers:
+              - name: nginx-container 
+                image: nginx
+        replicas: 3
+        selector: 
+          matchLabels:
+            type: front-end
+      ```
+    - Create replicaset
+    ```bash
+    kubectl create -f replicaset-definition.yml
+    ```
+    - get information
+    ```bash
+    kubectl get replicaset
+    kubectl get pods
+    ```
+  - Labels and Selectors:
+    - filters out pods for replicaset to monitor and manage
+  - Scale
+    - How to change number of replicas of our  replicaset. 
+      1. Change `replicas` field in the `yml` file and:
+      ```bash
+      kubectl replace -f replicaset-definition.yml
+      ```
+      2. use `scale` command
+      ```bash
+      kubectl scale --replicas=6 -f replicaset-definition.yml 
+      # or
+      kubectl scale --replicas=6 replicaset myapp-replicaset # replicaset: TYPE | myapp-replicaset: NAME
+      ```
+  - Commands Summary:
+    - `create`
+    - `get`
+    - `delete`
+    - `replace`
+    - `scale`
 
-### Practice Test - ReplicaSets
+### Practice Test & Solution - ReplicaSets
+- Practice: https://uklabs.kodekloud.com/topic/replicasets-2/
+- Solution: [practice2_replicasets](./practices/practice2_replicasets/)
 
 ### Solution - ReplicaSets
