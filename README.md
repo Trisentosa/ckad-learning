@@ -16,7 +16,12 @@
     - [Edit Pods (for practial quizzes)](#edit-pods-for-practial-quizzes)
     - [Recap - ReplicaSets, Controllers](#recap---replicasets-controllers)
     - [Practice Test \& Solution - ReplicaSets](#practice-test--solution---replicasets)
-    - [Solution - ReplicaSets](#solution---replicasets)
+    - [Recap: Deployments](#recap-deployments)
+    - [Certification Tip: Formatting Output with kubectl](#certification-tip-formatting-output-with-kubectl)
+    - [Recap: Namespaces](#recap-namespaces)
+    - [Practice Test \& Solution - Namespace](#practice-test--solution---namespace)
+    - [Certification Tip: Imperative commands](#certification-tip-imperative-commands)
+    - [Practice Test \& Solution - Imperative Commands](#practice-test--solution---imperative-commands)
 
 
 # Course 
@@ -262,4 +267,164 @@ spec:
 - Practice: https://uklabs.kodekloud.com/topic/replicasets-2/
 - Solution: [practice2_replicasets](./practices/practice2_replicasets/)
 
-### Solution - ReplicaSets
+### Recap: Deployments
+- From `ReplicaSet`, we understand this hierarchy flow: ReplicaSet -> Pods -> Container
+- `Deployment` stands here in the hierarchy: Deployment -> ReplicaSet -> Pods -> Container
+- It is a kubernetes object that provides ability to upgrade the underlying instance seamlessly, allow to
+  - Rolling updates
+  - Rollback deployment
+  - Pause changes
+  - Resume changes
+- To create
+  - Definition file
+      ```yaml
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: myapp-deployment
+        labels: 
+          app: myapp
+          type: frontend
+      spec:
+        template: #should be what our pod definiton be, similar to previous exercies (`pod-definition.yaml`)
+          metadata: 
+            name: myapp-pod
+            labels: 
+              app: myapp
+              type: front-end
+          spec:
+            containers:
+              - name: nginx-container 
+                image: nginx
+        replicas: 3
+        selector: 
+          matchLabels:
+            type: front-end
+      ```
+    - create from file
+      ```bash
+      kubectl create -f deployment-definiton.yml
+      ```
+    - get info
+      ```
+      kubectl get all # Get ALL objects created
+      kubectl get deployments # get all deployments
+      kubectl get replicaset
+      kubectl get pods
+      ```
+
+### Certification Tip: Formatting Output with kubectl
+- Default output format for all **kubectl** commands is human readable plain text format
+- We can leverage the `-o` flag to output the details in several different formats
+- `kubectl [command] [TYPE] [NAME] -o <output_format>`, some commonly used:
+  - -o json: Output a JSON formatted API object.
+  - -o name: Print only the resource name and nothing else.
+  - -o wide: Output in the plain-text format with any additional information.
+  - -o yaml: Output a YAML formatted API object.
+- Helpful links
+  - https://kubernetes.io/docs/reference/kubectl/
+  - https://kubernetes.io/docs/reference/kubectl/quick-reference/
+
+### Recap: Namespaces
+- ![kubernetes_namespace](./resources/images/material/kubernetes_namespace.png)
+- House analogy: each namespace is a house, within each house they call each other by the first name, by call people from other house by their full name. 
+- By default startup, kubernetes creates 3 namespace
+  - `Default`: this is where all your objects by default will be created
+  - `kube-system`: internal services such as networking solution, dns service etc
+  - `kube-public`: resources that should be made available for users are created
+- Namespace is used for: 
+  - Isolation
+    - for example: you want to use same cluster for `dev` and `prod` but want to isolate the resources for each env. Can create `dev` and `prod` namespaces
+  - Policies: define who can do what
+  - Resource Limits: limit resource for each namespace (cpu, memory, i/o, etc)
+  - DNS: resources within a namespace can refer to each other simply by their names 
+    - e.g. From your own namespace: `mysql.connect("db-service")`
+    - e.g. From other namespace (default to dev): `mysql.connect("db-service.dev.svc.cluster.local")`
+    - Format of the DNS name: `db-service.dev.svc.cluster.local`
+      - db-service: service name
+      - dev: namespace
+      - svc: stands for `service`. default subdomain
+      - cluster.local: default domain
+  - To get by namespace
+  ```bash
+  kubectl get pods # by default, use default
+  kubectl get pods --namespace=kube-system # other namespace use namespace option
+  ```
+  - Create namespace
+    - namespace definiton file
+    ```yaml
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: dev
+    ```
+    - create namespace
+    ```bash
+    kubectl create -f namespace-dev.yml # from file
+    kubectl create namespace dev # directly
+    ```
+  - Switch default namespace
+  ```bash
+  kubectl config set-context $(kubectl config current-context) --namespace=dev # this command set-context to one(current-contex) then we set the namespace field to dev
+  kubectl get pods
+  ```
+  - **Note**: will discuss context later
+  - View pods in all namespaces
+  ```bash
+  kubectl get pods --all-namespaces
+  ```
+  - To limit resource usage within namespace, create `Resource Quota`
+  ```yaml
+  apiVersion: v1
+  kind: ResourceQuota
+  metadata:
+    name: compute-quota
+    namespace: dev
+  spec:
+    hard:
+      pods: "10"
+      requests.cpu: "4"
+      requests.memory: 5Gi
+      limits.cpu: "10"
+      limits.memory: 10Gi
+  ```
+  ```bash
+  kubectl create -f compute-quota.yaml
+  ```
+
+### Practice Test & Solution - Namespace
+- Practice: https://uklabs.kodekloud.com/topic/namespaces-3/
+- Solution: [practice3_namespace](./practices/practice3_namespace/)
+
+### Certification Tip: Imperative commands
+- Declarative(using defitnion file) or Imperative(directly)
+- We rarely want to use Imperative, but it is useful to getting one-time tasks done quickly. 
+- Two options that can come in handy:
+  - `--dry-run`: By default, as soon as the command is run, the resource will be created. If you simply want to test your command, use the `--dry-run=client `option. This will not create the resource. Instead, tell you whether the resource can be created and if your command is right.
+  - `-o yaml`: This will output the resource definition in YAML format on the screen.
+- Use the above two in combination along with Linux output redirection to generate a resource definition file quickly, that you can then modify and create resources as required, instead of creating the files from scratch.
+  - `kubectl run nginx --image=nginx --dry-run=client -o yaml > nginx-pod.yaml`
+- Example: POD
+  - create an NGINX Pod: `kubectl run nginx --image=nginx`
+  - generate POD manifest YAML file (-o yaml): `kubectl run nginx --image=nginx --dry-run=client -o yaml`
+- Example: Service
+  - Create a `Service` named redis-service of type ClusterIP to expose pod redis on port 6379
+  ```bash
+  kubectl expose pod redis --port=6379 --name redis-service --dry-run=client -o yaml # this will use pod's label as selectors
+
+  kubectl create service clusterip redis --tcp=6379:6379 --dry-run=client -o yaml # this will assuem selectors as app=redis. 
+
+  # you cannot pass selector as option: https://github.com/kubernetes/kubernetes/issues/46191
+  ```
+  - Create a Service named nginx of type NodePort to expose pod nginx's port 80 on port 30080 on the nodes
+  ```bash
+  kubectl expose pod nginx --port=80 --name nginx-service --type=NodePort --dry-run=client -o yaml # with this can't specify the node port, have to manually add (but preferred than using create dry run)
+
+  kubectl create service nodeport nginx --tcp=80:80 --node-port=30080 --dry-run=client -o yaml # this will not use pods label as selectors
+  ```
+- Reference: https://kubernetes.io/docs/reference/kubectl/conventions/ 
+
+### Practice Test & Solution - Imperative Commands
+- Practice: https://kodekloud.com/topic/imperative-commands/
+- Solution: [practice4_imperative_commands](./practices/practice4_imperative_commands/)
+
