@@ -8,6 +8,9 @@ kubectl run redis --image=redis:alpine --dry-run=client -o=yaml > redis-deploy-d
 vi redis-deploy-definition.yaml # modify labels to tier: db
 kubectl apply -f redis-deploy-definition.yaml
 
+# Easier solution to above >.>
+kubectl run redis --image=redis:alpine --labels="tier=db"
+
 # Create a service redis-service to expose the redis application within the cluster on port 6379.
 kubectl expose pod redis --name redis-service --port=6379 --type=ClusterIP
 
@@ -27,3 +30,6 @@ kubectl create deployment redis-deploy --namespace=dev-ns --image=redis --replic
 # Next, create a service of type ClusterIP by the same name (httpd). The target port for the service should be 80.
 kubectl run httpd --image=httpd:alpine
 kubectl expose pod httpd --name httpd --port=80 service/httpd exposed
+
+# easier way
+kubectl run httpd --image=httpd:alpine --port=80 --expose=true
