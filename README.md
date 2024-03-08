@@ -22,6 +22,9 @@
     - [Practice Test \& Solution - Namespace](#practice-test--solution---namespace)
     - [Certification Tip: Imperative commands](#certification-tip-imperative-commands)
     - [Practice Test \& Solution - Imperative Commands](#practice-test--solution---imperative-commands)
+  - [Configuration](#configuration)
+    - [Define, build, and modify contianer images](#define-build-and-modify-contianer-images)
+    - [Practice Test \& Solution: Docker Images](#practice-test--solution-docker-images)
 
 
 # Course 
@@ -427,4 +430,22 @@ spec:
 ### Practice Test & Solution - Imperative Commands
 - Practice: https://kodekloud.com/topic/imperative-commands/
 - Solution: [practice4_imperative_commands](./practices/practice4_imperative_commands/)
+
+## Configuration
+
+### Define, build, and modify contianer images
+- Why need to build our own:
+  - if there is no existing image in registry that fulfils your service needs
+  - ease of shipping and deployment
+- To create an image
+  - create `Dockerfile`: for [reference](https://docs.docker.com/reference/dockerfile/)
+  - docker build: `docker build Dockerfile -t <account-name/image-name>`
+    - failure: upon failure, docker will cache previous successful step, and will continue directly from last failed step
+  - docker push: `docker push <acount-name/image-name>`
+  - *Note*:
+    - use `docker history <account-name/image-name>` after buld to see the detail of each step in Dockerfile process (e.g. how much storage they use)
+
+### Practice Test & Solution: Docker Images
+- Practice: https://uklabs.kodekloud.com/topic/practice-test-docker-images-2/
+- Solution: [practice5_images](./practices/practice5_images/)
 
