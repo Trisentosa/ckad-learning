@@ -463,7 +463,7 @@ spec:
   FROM Ubuntu
   CMD sleep 5
   ```
-    - can also use json array format (separate command and argument)
+  - can also use json array format (separate command and argument)
     ```yaml
     FROM Ubuntu
     CMD ["sleep", "5"]
