@@ -25,6 +25,10 @@
   - [Configuration](#configuration)
     - [Define, build, and modify contianer images](#define-build-and-modify-contianer-images)
     - [Practice Test \& Solution: Docker Images](#practice-test--solution-docker-images)
+    - [Commands and Arguments in Doccker](#commands-and-arguments-in-doccker)
+    - [Commands and Arguments in Kubernetes](#commands-and-arguments-in-kubernetes)
+    - [Note: Editing Pods and Deployments](#note-editing-pods-and-deployments)
+    - [Practice Test \& Solution: Commands and Arguments](#practice-test--solution-commands-and-arguments)
 
 
 # Course 
@@ -327,6 +331,7 @@ spec:
 - Helpful links
   - https://kubernetes.io/docs/reference/kubectl/
   - https://kubernetes.io/docs/reference/kubectl/quick-reference/
+  - https://kubernetes.io/docs/reference/kubectl/jsonpath/
 
 ### Recap: Namespaces
 - ![kubernetes_namespace](./resources/images/material/kubernetes_namespace.png)
@@ -449,3 +454,56 @@ spec:
 - Practice: https://uklabs.kodekloud.com/topic/practice-test-docker-images-2/
 - Solution: [practice5_images](./practices/practice5_images/)
 
+### Commands and Arguments in Doccker
+- Note: a container only lives as long as the process is alive. Meaning if process stop, containers exited. What is the process that allow the container to live? Answer: the `CMD` or `ENTRYPOINT` inside the dockerfile (e.g. `CMD ["bash"]` meaning the container alive as long as the bash process is running)
+- How to specify different command to start the container: append command to `docker run` command (e.g. `docker run ubuntu sleep 5` override the bash, making the container to sleep for 5 seconds then exits)
+- How to make this change (`sleep 5`) permanent?
+  - make a Dockerfile
+  ```yaml
+  FROM Ubuntu
+  CMD sleep 5
+  ```
+    - can also use json array format (separate command and argument)
+    ```yaml
+    FROM Ubuntu
+    CMD ["sleep", "5"]
+    ```
+  - build: `docker build -t ubuntu-sleeper`
+  - run: `docker run ubuntu-sleeper`
+- Pass in argument (e.g. sleep for x argument seconds). use `ENTRYPOINT` instead of `CMD`
+```yaml
+FROM Ubuntu
+ENTRYPOINT ["sleep"]
+```
+- Default value (if no `x` argument passed when `docker run ubuntu-sleeper x`, will return error). combine `ENTRYPOINT` and `CMD`
+```yaml
+FROM Ubuntu
+ENTRYPOINT ["sleep"]
+CMD ["5"]
+```
+- Change base command to run (e.g. `sleep` to `sleep2.0`)
+  - run: `docker run --entrypoint sleep2.0 ubuntu-sleeper 10`
+
+### Commands and Arguments in Kubernetes
+- create pod from `ubuntu-sleeper` from previous section
+  - create `pod-definition.yml`
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: ubuntu-sleeper-pod
+  spec:
+    containers:
+      - name: ubuntu-sleeper
+        image: ubuntu-sleeper
+        command: ["sleep2.0"] #override the ENTRYPOINT ["sleep"]
+        args: ["10"] # override the CMD ["5"]
+  ```
+  - create pod
+  ```bash
+  kubectl create -f pod-definition.yml
+  ```
+
+### Note: Editing Pods and Deployments
+
+### Practice Test & Solution: Commands and Arguments
