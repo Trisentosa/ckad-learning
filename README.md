@@ -27,8 +27,13 @@
     - [Practice Test \& Solution: Docker Images](#practice-test--solution-docker-images)
     - [Commands and Arguments in Doccker](#commands-and-arguments-in-doccker)
     - [Commands and Arguments in Kubernetes](#commands-and-arguments-in-kubernetes)
-    - [Note: Editing Pods and Deployments](#note-editing-pods-and-deployments)
     - [Practice Test \& Solution: Commands and Arguments](#practice-test--solution-commands-and-arguments)
+    - [Environment Variables](#environment-variables)
+    - [ConfigMaps](#configmaps)
+    - [Practice Test \& Solution: ConfigMaps](#practice-test--solution-configmaps)
+    - [Kubernetes Secrets](#kubernetes-secrets)
+    - [Secret Store CSI Driver](#secret-store-csi-driver)
+    - [Practice Test \& Solution: Secrets](#practice-test--solution-secrets)
 
 
 # Course 
@@ -504,6 +509,229 @@ CMD ["5"]
   kubectl create -f pod-definition.yml
   ```
 
-### Note: Editing Pods and Deployments
-
 ### Practice Test & Solution: Commands and Arguments
+- Practice: https://uklabs.kodekloud.com/topic/commands-and-arguments/
+- Solution: [practice6_command_argument](./practices/practice6_command_argument/)
+
+### Environment Variables
+- `env` property in `.yaml` file. `env` is an array that takes a key(`name`)-value pair
+  ```yaml
+  apiVersion: v1 
+  kind: Pod 
+  metadata:
+    name: ubuntu-pod
+  spec:
+    containers:
+    - name: ubuntu
+      image: ubuntu
+      env:
+        - name: COLOR
+          value: pink
+  ```
+- Other ways of setting in environment variables
+  - ConfigMaps (upcoming lecture)
+  ```yaml
+  env:
+    - name: COLOR
+      valueFrom:
+            configMapKeyRef:
+  ```
+  - Secrets (upcoming lecture)
+  ```yaml
+  env:
+    - name: COLOR
+      valueFrom:
+            secretKeyRef:
+  ```
+
+### ConfigMaps
+- Motivation: when we have many pod definition files, can be hard to manage the environment variables
+- ConfigMaps: pass configuration data in form of key-value pair to created pod
+- 2 Phases:
+  - Create ConfigMap
+    - Imperative way:
+    ```bash
+      # literal format: <config-name> --from-literal=<key>=<value> 
+      kubectl create configmap \
+        app-config --from-literal=APP_COLOR=blue
+        app-config --from-literal=APP_MOD=prod
+      
+      # from file format: <config-name> --from-file=<path-to-file>
+      kubectl create configmap
+        app-config --from-file=app_config.properties
+    ```
+    - Declarative way:
+      - `config-map.yaml`
+      ```yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: app-config
+      data:
+        APP_COLOR: blue
+        APP_MOD: prod
+      ```
+  - Inject them into pod
+    - pod-definition.yaml (for all key-value pair of ConfigMap):  use `envFrom` -> `configMapRef` -> `name`. Where the `name` is the `name` metadata from ConfigMap definition
+      ```yaml
+      apiVersion: v1 
+      kind: Pod 
+      metadata:
+        name: ubuntu-pod
+      spec:
+        containers:
+        - name: ubuntu
+          image: ubuntu
+          envFrom:
+            - configMapRef:
+                name: app-config
+      ```
+    - pod-definition.yaml (for a single key-value pair of ConfigMap): use `env` property
+      ```yaml
+      apiVersion: v1 
+      kind: Pod 
+      metadata:
+        name: ubuntu-pod
+      spec:
+        containers:
+        - name: ubuntu
+          image: ubuntu
+          env:
+            - configMapRef:
+                name: app-config
+                key: APP_COLOR
+      ```
+    - for volumes
+      ```yaml
+      volumes:
+        - name: app-config-volume
+          configMap:
+            name: app-config
+      ```
+    - config-map.yaml
+      ```yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: app-config
+      data:
+        APP_COLOR: blue
+        APP_MOD: prod
+      ```
+- View ConfigMaps:
+  - `kubectl get configmaps`
+  - `kubectl describe configmaps`
+
+### Practice Test & Solution: ConfigMaps
+- Practice: https://uklabs.kodekloud.com/topic/configmaps-2/
+- Solution: [practice7_config_maps](./practices/practice7_config_maps/)
+
+### Kubernetes Secrets
+- Motivation: ConfigMap stored key-value pair in plain text data (not okay to store sensitive information like password and keys)
+- Secret: similar to ConfigMap but used to store sensitive data
+- 2 Phase:
+  - Create Secret
+    - Imperative way:
+      - Secret file(for `fromfile`):
+      ```
+      DB_HOST: mysql
+      DB_User: root
+      DB_Password: password
+      ```
+      ```bash
+      # literal format: <secret-name> --from-literal=<key>=<value>
+      kubectl create secret generic\
+        app-secret --from-literal=DB_HOST=mysql
+        app-secret --from-literal=DB_Password=passwrod
+
+      # from file format: <secret-name> --from-file=<path-to-file>
+      kubectl create secret generic\
+        app-secret --from-file=app_secret.properties
+      ```
+    - Declarative way:
+      - secret-data.yaml
+      ```yaml
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: app-secret
+      data:
+        DB_Host: bXlzcWw=
+        DB_User: cm9vdA==
+        DB_Password: cGFzc3dvcmQ=
+      ```
+      - we encode the value before storing it
+      ```bash
+      echo -n mysql | base64 #output: bXlzcWw=
+      ```
+      - to decode back
+      ```bash
+      echo -n bXlzcWw= | base64 --decode
+      ```
+  - Inject to Pod
+    - pod-definition.yaml (injecting all key-value pair)
+      ```yaml
+      apiVersion: v1 
+      kind: Pod 
+      metadata:
+        name: ubuntu-pod
+      spec:
+        containers:
+        - name: ubuntu
+          image: ubuntu
+          envFrom:
+            - secretRef:
+                name: app-secret
+      ```
+    - single env: use `env` property
+    ```yaml
+    env:
+      - name: DB_Password
+        valueFrom:
+          secretKeyRef:
+            name: app-secret
+            key: DB_Password
+    ```
+    - Volume: the secret will be created as files with value of secrets as its content
+      - e.g. `ls /opt/app-secret-volumes` -> DB_Host, DB_Password, DB_User
+      - where each file contains the value of the key
+    ```yaml
+    volumes:
+      - name: app-secret-volume
+        secret:
+          secretName: app-secret
+    ```
+    - secret-data.yaml
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata: 
+      name: app-secret
+    data: 
+      DB_Host: bXlzcWw=
+      DB_User: cm9vdA==
+      DB_Password: cGFzc3dvcmQ=
+    ```
+    - create the secret
+    ```bash
+    kubectl create -f pod-definition.yaml
+    ```
+- View Secrets:
+  - `kubectl get secrets`
+  - `kubectl describe secrets`
+  - To view the valueL `kubectl get secret app-secret -o yaml`
+- Note on Secrets:
+  - Secrets only encoded. Not encrypted
+    - Do not check-in Secret objects to SCM along with the code
+  - Secrets are not encrypted in ETCD
+    - Suggestted to encrypt secret at Rest
+  - Anyone able to create pods/deployments in the same namespace can access the secrets
+  - Consider third party secrets store providers (AWS ,Azure, GCP, Vault Provider)
+- Additional Notes: https://www.udemy.com/course/certified-kubernetes-application-developer/learn/lecture/14827458#content
+  
+### Secret Store CSI Driver
+https://www.youtube.com/watch?v=MTnQW9MxnRI
+
+### Practice Test & Solution: Secrets
+- Practice: https://uklabs.kodekloud.com/topic/secrets-4/
+- Solution: [practice8_secrets](./practices/practice8_secrets/)
