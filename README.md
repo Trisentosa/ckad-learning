@@ -34,6 +34,10 @@
     - [Kubernetes Secrets](#kubernetes-secrets)
     - [Secret Store CSI Driver](#secret-store-csi-driver)
     - [Practice Test \& Solution: Secrets](#practice-test--solution-secrets)
+    - [Demo: Encrypting Secret Data at Rest](#demo-encrypting-secret-data-at-rest)
+    - [Docker Security](#docker-security)
+    - [Security Contexts](#security-contexts)
+    - [Practice Test - Security Contexts](#practice-test---security-contexts)
 
 
 # Course 
@@ -735,3 +739,65 @@ https://www.youtube.com/watch?v=MTnQW9MxnRI
 ### Practice Test & Solution: Secrets
 - Practice: https://uklabs.kodekloud.com/topic/secrets-4/
 - Solution: [practice8_secrets](./practices/practice8_secrets/)
+
+### Demo: Encrypting Secret Data at Rest
+- Resource: https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/
+
+### Docker Security
+- Container and host share the same kernel. Container use namespace, each containers has it's own namespace, and each container can only see processes of its own namespace. But the host (also its own namespace), but since all containers run inside host's namespace, technically from host perspective, it can see all the processes run by each container it host (different PID from the container's PID). This is process isolation.
+- User Isolation: by default, docker run process in container as root user (can check using `ps aux`) To run process to not run as root can use option `--user`
+  ```bash
+  docker run --user=1000 ubuntu sleep 3600
+  ```
+  - or user can be defined in the image
+    - e.g. Dockerfile
+      ```Dockerfile
+      FROM UBUNTU
+      USER 1000
+      ```
+    - build image: `docker build -t my-ubuntu-imag .`
+    - run container using image: `docker run my-ubuntu-image sleep 3600`
+  - But docker uses Linux Capabilities: basically it limits the capability even for root user when it runs on container
+    - can check in `/usr/include/linux/capability.h`
+    - override privilege: `docker run --cap-add MAC_ADMIN ubuntu`
+    - drop privileege: `docker run --cap-drop kill ubuntu`
+
+### Security Contexts
+- Similar to previous section on Docker security user isolation, we can do the same in k8s with security contexts
+- In k8s, container is isolated within pods
+  - if user isolation setting in the pod: applies to all containers
+  - if both container and pod apply user isolation setting: setting in container override the pod's setting
+- Pod level:
+```yaml
+apiVersion: v1
+kind: Pod
+metadata: 
+  name: web-pod
+spec:
+  securityContext:
+    runAsUser: 1000
+  containers:
+    - name: ubuntu
+      image: ubuntu
+      command: ["sleep", "3600"]
+```
+- Container level:
+```yaml
+apiVersion: v1
+kind: Pod
+metadata: 
+  name: web-pod
+spec:
+  containers:
+    - name: ubuntu
+      image: ubuntu
+      command: ["sleep", "3600"]
+      securityContext:
+        runAsUser: 1000
+        capabilities: # capabilities only supported in container level and not pod level
+          add: ["MAC_ADMIN"]
+```
+
+### Practice Test - Security Contexts
+- Practice: https://uklabs.kodekloud.com/topic/security-contexts-3/ 
+- Solution: [practice9_security_contexts](./practices/practice9_security_contexts/)
