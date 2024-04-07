@@ -42,6 +42,9 @@
     - [Practice - Service Accounts](#practice---service-accounts)
     - [Resource Requirements](#resource-requirements)
     - [Practice Test - Resource Requirements](#practice-test---resource-requirements)
+    - [Taints and Tolerations](#taints-and-tolerations)
+    - [Practice Test - Taints and Toleration](#practice-test---taints-and-toleration)
+    - [Node Selectors](#node-selectors)
 
 
 # Course 
@@ -976,3 +979,52 @@ spec:
 ### Practice Test - Resource Requirements
 - Practice: https://uklabs.kodekloud.com/topic/resource-limits-2/
 - Solution: [practice11_resource_requirements](./practices/practice11_resource_requirements/)
+
+### Taints and Tolerations
+- Analogy: bug, human, and bug spray
+  - bug spray keeps bug away from human, in this case bugs are intolerant to bug spray.
+  - but not all bugs, are intolerant to all bug spray. It all depends on the Intolerant level of the bug and the taint used, some bug can tolerate certain taint
+  - in K8s:
+    - human: `node`
+    - bugs: `pod`
+    - bug spray: `taint`
+    - it has nothing to do with security, rather restriction on which pod can be scheduled on a node
+- Default behavior: all nodes have no taint, and all pods have no toleration. Meaning if a node has a taint, no pod unless given a toleration to that taint is able to get scheduled in that node.
+- Taint - Node
+  - Create
+  ```bash
+  kubectl taint nodes node-name key=value:taint-effect # format
+  kubectl taint nodes node1 app=blue:NoSchedule # give a taint of key app and value blue, wiht NoScheudle effect
+  ```
+    - 3 types of taint-effects
+      - NoSchedule: pod will not schedule on the node 
+      - PreferNoSchedule: pod will not preferable to be schedule on the node (but not guarantee)
+      - NoExecute: new pods will not be scheduled on the node and existing pod on the node will be evicted if they don't tolerate to the taint
+- Toleration - Pods
+  - Create
+  ```bash
+  kubectl taint nodes node1 app= blue:NoSchedule
+  ```
+  - `pod-defintion.yaml` :all toleration field value must use dobule quote (`""`)
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  ...
+  spec:
+    ...
+    tolerations:
+      - key: "app"
+        operator: "Equal"
+        value: "blue"
+        effect: "NoSchedule"
+  ```
+- Note: Taint does not ensure that a pod is assiged to that node, a pod with a toleration can be scheduled to any node event those nodes with no taint at all. If the goal is to ensure that a pod goes into certain nodes, we can achieve that using `Node Affinity` in the next section
+- Note: master node, the node that is responsible for holding all the management software. Master node don't have any pods on it because when it created, a taint is put onto the master node that prevents any pod to be schedule in it
+  - To see it: `kubectl describe node kubemaster | grep Taint`
+
+### Practice Test - Taints and Toleration
+- Practice: https://uklabs.kodekloud.com/topic/taints-and-tolerations-3/
+- Solution: [practice12_taints_toleration](./practices/practice12_taints_toleration/)
+
+### Node Selectors
+- 3 Nodes;
