@@ -39,7 +39,9 @@
     - [Security Contexts](#security-contexts)
     - [Practice Test - Security Contexts](#practice-test---security-contexts)
     - [Service Accounts](#service-accounts)
-    - [Practice Test \& Solution: Service Accounts](#practice-test--solution-service-accounts)
+    - [Practice - Service Accounts](#practice---service-accounts)
+    - [Resource Requirements](#resource-requirements)
+    - [Practice Test - Resource Requirements](#practice-test---resource-requirements)
 
 
 # Course 
@@ -872,6 +874,105 @@ spec:
       ```
       - But doing these is not recommended anymore (should only create a service account token if TokenRequestAPI can't be used)
 
-### Practice Test & Solution: Service Accounts
+### Practice - Service Accounts
 - Practice: https://uklabs.kodekloud.com/topic/service-account-2/
-- Solution: 
+- Solution: [practice10_service_accounts](./practices/practice10_service_accounts/)
+
+### Resource Requirements
+- Every pod require a set of resources to run, whenever a pod is place on a node, it consumes the resource from that node
+- kube-scheduler decides which node a pod goes to, if no resource availaable in any of the nodes, scheuler will hold on placing node, and pod status will be failed due to "Insufficent cpu" or other resources
+- **Request**: To specifiy resource requirement for each pod (Resource Requests)
+  - To specify:
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  spec:
+    ...
+    containers:
+    - name: webapp
+      ...
+      resources:
+        requests:
+          memory: "4Gi"
+          cpu: 2
+  ```
+  - What does 1 CPU mean?
+    - first, it is equivalent to
+      - 1 AWS vCPU
+      - 1 GCP core
+      - 1 Azure Core
+      - 1 Hyperthread
+    - Lowest it can go is "1M" or 0.001
+  - With memory, the unit goes
+    - 1 G(Gigabyte) -> 1 M(Megabyte) -> 1 K(Kilobyte) or
+    - 1 Gi(Gibibyte)(or equivalent to 1.073741 G) -> 1 Mi -> 1 Ki
+- **Limit**: By default a container has no limit on the resources it consumes (meaning given enough time it might consumes the resource of the whole node), so crucial to set limit
+  - To specify limit
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  spec:
+    ...
+    containers:
+    - name: webapp
+      ...
+      resources:
+        requests:
+          memory: "4Gi"
+          cpu: 1
+        limits:
+          memory: "4Gi"
+          cpu: 2
+  ```
+  - What happened when a pod want to exceed it limits?
+    - CPU: not allowed, will be throttled at its limit
+    - Memory: a container can go over its defined limit, and pod will be terminated caused of OOM(Out of Memory) error
+  - Default Behavior
+    - K8s doesn't have request and limit
+    - any pod can consume as many resource as they want
+  - Behavior/ Cases
+    - CPU: 
+      - No request, have limits: request = limits
+      - Have request, have limits: CPU between request - limits
+      - Request, no limits: most ideal setup (case by case), but pod will always have resource guaranteed
+    - Memory:
+      - No request, have limits: request = limits
+      - Have request, have limits
+      - Request, no limits: any pod can consume as much memory, if a pod consumes memory too much memory the only way to retrieve it is to kill the pod itself
+- `Limit Range`: define default values to containers in pod (define in **namespace** level) 
+  - `limit-range-cpu.yaml` (same setup with memory, just use `memory` instead of `cpu`)
+  ```yaml
+  apiVersion: v1
+  kind: LimitRange
+  metadata:
+    name: cpu-resource-constraint
+  spec:
+    limits:
+    - default: #limit
+        cpu: 500m
+      defaultRequest: #request
+        cpu: 500m
+      max:
+        cpu: "1"
+      min:
+        cpu: 100m
+      type: Container
+  ```
+- `Resource Quotas`: restrict total amount of resources used by application deployed in a cluster (**namespace** level object)
+  - `resource-quota.yaml`
+  ```yaml
+  apiVersion: v1
+  kind: ResourceQuota
+  metadata:
+    name: my-resource-quota
+  spec:
+    hard:
+      requests.cpu: 4
+      requests.memory: 4Gi
+      limits.cpu: 10
+      limits.memory: 10Gi
+  ```
+
+### Practice Test - Resource Requirements
+- Practice: https://uklabs.kodekloud.com/topic/resource-limits-2/
+- Solution: [practice11_resource_requirements](./practices/practice11_resource_requirements/)

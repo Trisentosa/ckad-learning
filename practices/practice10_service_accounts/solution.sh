@@ -37,14 +37,3 @@ kubectl create token dashboard-sa
 kubectl get deployments.apps web-dashboard -o yaml > deployment.yaml # add serviceAccountName
 vim deployment.yaml
 kubectl apply -f deployment.yaml
-
-
-
-
-
-
-
-
-
-
-
