@@ -38,6 +38,8 @@
     - [Docker Security](#docker-security)
     - [Security Contexts](#security-contexts)
     - [Practice Test - Security Contexts](#practice-test---security-contexts)
+    - [Service Accounts](#service-accounts)
+    - [Practice Test \& Solution: Service Accounts](#practice-test--solution-service-accounts)
 
 
 # Course 
@@ -801,3 +803,75 @@ spec:
 ### Practice Test - Security Contexts
 - Practice: https://uklabs.kodekloud.com/topic/security-contexts-3/ 
 - Solution: [practice9_security_contexts](./practices/practice9_security_contexts/)
+
+### Service Accounts
+- Linked with other security related concepts such as auth, RBAC, etc
+- But, for CKAD course, we need to only know how to use Service Accounts
+- 2 Types of Accounts
+  - User Account (Human)
+    - e.g. Admin accessing cluster to perform some task or dev accessing cluster to deploy application
+  - **Service Account** (Machine)
+    - e.g. Monitoring application like prometheus use service account to poll k8s API
+- To create a Service Account
+  - Imperative:
+    ```bash
+    kubectl create serviceaccount dashboard-sa
+    kubectl get serviceaccount # by default, each namespace has its own `default` service account
+    kubectl describe serviceaccount dashboard-sa # has Tokens property, stored as a secret object (e.g. dashboard-sa-token-kbbdm)
+
+    kubectl describe secret dashboard-sa-token-kbbdm # accessing the token in the `token` field
+    ```
+  - Default service acocunt
+    - By default, each namespace has its own `default` service account
+    - When you create a new pod (without servie account config), it will automatically mount the `default` service account in the `Volumes` directive (e.g. `default-token-j4hkv`)
+    - The `default` service account capability is very limited
+    ```bash
+    kubectl describe pod my-kubernetes-dashboard #check the Volumes and Mounts section
+    kubectl exec -it my-kubernetes-dashboard --ls /var/run/secrets/kubernetes.io/serviceaccount # where the service account is stored
+    kubectl exec -it my-kubernetes-dashboard cat /var/run/secrets/kubernetes.io/serviceaccount/token # see the token
+    ```
+  - Disable of using default service account
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  ...
+  spec:
+    ...
+    automountServiceAccountToken: false # HERE
+  ```
+  - Use custom service account in pod definiton (need to delete and recreate the pod to take effect)
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  ...
+  spec:
+    ...
+    serviceAccountName: dashboard-sa # HERE
+  ```
+  - but for deployment, will take care of deleting and recreating with new service account.
+  - K8s 1.22/1.24 changes
+    - if you go to https://jwt.io/, and paste in the serviceAccount token stored in each pod (e.g. /var/run/secrets/kubernetes.io/serviceaccount/token), notice that the token don't have expiry date
+    - `v1.22` Introduced TokenRequestAPI: provisioning k8s serviceAccount token, more secure and scalable
+      - Pod not use serviceAccount tokens by default anymore, instead it mounts a projected volume, that communicates and updates the auth token using the TokenRequestAPI
+    - `v1.24` Reduction of secret-based serviceAccount tokens
+      - when creating a service account, it don't automatically create secret for you
+      - for example, to do simulate behavior in the beginning of section (create token, but not secret object that contains token inside)
+      ```bash
+      kubectl create serviceaccount dashboard-sa
+      kubectl create token dashboard-sa # if we copy and decode it in jwt.io, now there is expiry date 
+      ``` 
+      - To create alongside with secret object that contains token inside (`secret-definition.yml`)
+      ```yaml
+      apiVersion: v1
+      kind: Secret
+      type: kubernetes.io/service-account-token
+      metadata:
+        name: mysecretname
+        annotations:
+          kubernetes.io/service-account-name: dashboard-sa # have this service-account first
+      ```
+      - But doing these is not recommended anymore (should only create a service account token if TokenRequestAPI can't be used)
+
+### Practice Test & Solution: Service Accounts
+- Practice: https://uklabs.kodekloud.com/topic/service-account-2/
+- Solution: 
