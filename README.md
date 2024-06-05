@@ -45,6 +45,10 @@
     - [Taints and Tolerations](#taints-and-tolerations)
     - [Practice Test - Taints and Toleration](#practice-test---taints-and-toleration)
     - [Node Selectors](#node-selectors)
+    - [Node Affinity](#node-affinity)
+    - [Practice Test \& Solution - Node Affinity](#practice-test--solution---node-affinity)
+    - [Taints \& Tolerations vs Node Affinity](#taints--tolerations-vs-node-affinity)
+    - [Tips \& Tricks](#tips--tricks)
 
 
 # Course 
@@ -1027,4 +1031,91 @@ spec:
 - Solution: [practice12_taints_toleration](./practices/practice12_taints_toleration/)
 
 ### Node Selectors
-- 3 Nodes;
+- 3 nodes cluster with different specs (some large, some small)
+- Let say for certain pod, it can only run on the large node due to the amount of resource it requires
+- In default setup, any pods can go to any nodes
+- We can set limitation on the pod, there are 2 ways to do this:
+  - Node Selectors (`nodeSelector` field)
+  ```yaml
+  apiVersion:
+  kind: Pod
+  metadata:
+    name: myapp-pod
+  spec:
+    containers:
+    - name: data-processor
+      image: data-processor
+    nodeSelector:
+      size: Large
+  ```
+  - How do k8s know which node has `size` -> `Large`?
+  - This is just label, how to label the node?
+  ```bash
+  kubectl label nodes <node-name> <label-key>=<label-value>\
+  kubectl label nodes node-1 size=Large
+  ```
+  - For more complex selections (e.g only large OR medium nodes, NO small nodes at all). To do this can use node affinity
+
+### Node Affinity
+- Do the complex selection such as `Or` operator, `In` operator [affinity](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity)
+- From our example in node affinity:
+  ```yaml
+  apiVersion:
+  kind: Pod
+  metadata:
+    name: myapp-pod
+  spec:
+    containers:
+    - name: data-processor
+      image: data-processor
+    nodeSelector:
+      size: Large
+  ```
+- Will look like this (both do the same thing)
+  ```yaml
+  apiVersion:
+  kind:
+  metadata:
+    name: myapp-pod
+  spec:
+    containers:
+      - name: data-processor
+        image: data-processor
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoreDuringExecution:
+          nodeSelectorTerms:
+            - matchExpressions:
+              - key: size
+                operator: In
+                values: # multiple values like this mean OR (large or medium)
+                  - Large
+                  - Medium
+              - key: size
+                operator: NotIn # not small node
+                values:
+                  - Small
+              - key: size
+                operator: Exists # this if we just want to simply check if the node exist with size label
+    ```
+- Node Affinity Types 
+  - Notice this 2 keywords: `DuringScheduling` and `DuringExecution`
+  - Available Types (`IgnoredDuringExecution` meaning that if during node lifetime, someone let say remove the label. The pods will not be evicted)
+    - `requiredDuringSchedulingIgnoredDuringExecution`(Type 1): use this one if pod placement on nodes very important, because if no node matched the labels, pods will not be scheduled
+    - `preferredDuringSchedulingIgnoredDuringExecution` (Type 2): use this if running pods more important than the node placement itself (it will just try its best, but if not found, it will schedule to another node)
+  - Planned Types: (`RequiredDuringExecution` meaning that if during node lifetime, someone let say remove the label. The pods will be evicted)
+    - `requiredDuringSchedulingRequiredDuringExecution` (Type 3)
+  ![node_affinity_types](./resources/images/material/node_affinity_types.png)
+
+### Practice Test & Solution - Node Affinity
+- Practice: https://uklabs.kodekloud.com/topic/node-affinity-3/
+- Solution: [practice13_node_affinity](./practices/practice13_node_affinity/)
+
+### Taints & Tolerations vs Node Affinity
+- Taints & Toleration: Does not guarantee that a tolerated pod will be scheduled in a matching tainted node
+- Node Affinity: Does not guarantee that the pods scheduled in the node will have matching labels
+
+### Tips & Tricks
+- https://www.linkedin.com/pulse/my-ckad-exam-experience-atharva-chauthaiwale/
+- https://medium.com/@harioverhere/ckad-certified-kubernetes-application-developer-my-journey-3afb0901014
+- https://github.com/lucassha/CKAD-resources
