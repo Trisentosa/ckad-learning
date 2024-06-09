@@ -5,6 +5,7 @@
 <h1>Table of Contents</h1>
 
 - [Course](#course)
+- [Notes](#notes)
 - [Certifications](#certifications)
 - [Handbook](#handbook)
   - [Core Concepts](#core-concepts)
@@ -46,13 +47,26 @@
     - [Practice Test - Taints and Toleration](#practice-test---taints-and-toleration)
     - [Node Selectors](#node-selectors)
     - [Node Affinity](#node-affinity)
-    - [Practice Test \& Solution - Node Affinity](#practice-test--solution---node-affinity)
-    - [Taints \& Tolerations vs Node Affinity](#taints--tolerations-vs-node-affinity)
-    - [Tips \& Tricks](#tips--tricks)
+    - [Liveness Probes](#liveness-probes)
+    - [Container Logging](#container-logging)
+    - [Monitor and Debug Applications](#monitor-and-debug-applications)
+  - [POD Design](#pod-design)
+    - [Labels, Selectors and Annotations](#labels-selectors-and-annotations)
+    - [Rolling Updates \& Rollbacks in Deployments](#rolling-updates--rollbacks-in-deployments)
+    - [Updating deployment](#updating-deployment)
+    - [Demo: Deployment](#demo-deployment)
+    - [Deployment strategy - Blue Green](#deployment-strategy---blue-green)
+    - [Deployment strategy - Canary](#deployment-strategy---canary)
+    - [Jobs](#jobs)
+    - [CronJobs](#cronjobs)
 
 
 # Course 
 https://www.udemy.com/course/certified-kubernetes-application-developer/
+
+# Notes
+Definition files here might have been changed since this is written, always refer to the source of truth in k8s docs: (use this as point of reference)
+https://kubernetes.io/docs/home/
 
 # Certifications
 
@@ -1119,3 +1133,316 @@ spec:
 - https://www.linkedin.com/pulse/my-ckad-exam-experience-atharva-chauthaiwale/
 - https://medium.com/@harioverhere/ckad-certified-kubernetes-application-developer-my-journey-3afb0901014
 - https://github.com/lucassha/CKAD-resources
+
+## Multi-Container Pods
+
+### Multi-Container Pods
+- [Article](https://amitsharma13318.medium.com/understanding-kubernetes-multi-container-pod-patterns-and-init-containers-35f6996e17a1)
+- 3 Common Patterns
+  - Sidecar: 
+    - example: logging agent container sending logs from webserver container to central log server
+  - Adapter:
+    - example: generated log from different webserver containers is converted to a standardized format before sending to central log server
+  - Ambassador:
+    - example: generate containers as proxy to different databases depending on your environment (test, dev, staging, production)
+  ![multi_container_pods](./resources/images/material/multi_container_pods.webp)
+
+### Practice Test & Solution - Multi-Container Pods
+- Practice: https://uklabs.kodekloud.com/topic/multi-container-pods-3/
+- Solution: [practice14_multi_container_pods](./practices/practice13_node_affinity/)
+
+### Init Containers
+- Udemy : https://www.udemy.com/course/certified-kubernetes-application-developer/learn/lecture/32568700#content
+- Official guide of init container: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+- Basically, we can define sets of containers that will usually run a one time (initializing) process until completions, before deploying the normal containers
+
+### Practice Test & Solution - InitContainers
+- Practice: https://uklabs.kodekloud.com/topic/init-containers-3/
+- Solution: [practice15_init_containers](./practices/practice15_init_containers/)
+
+## Observability
+### Readiness and Liveness Probes
+- https://kubernetes.io/id/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+- 2 terms we need to understand
+  - POD status: where the pod is in its lifecycle (high level summary of a pod)
+    - **Pending state**: pod not scheduled(waiting) to a node (can use `kubectl describe pod` to check the reason why)
+    - **Container Creating state**: images required pulled and containers start
+    - **Running state**: once containers start until it finihses its task or indefinitely
+  - POD conditions: true or false key:value of a pod (`kubectl describe pod` in the condition section)
+    - **PodScheduled**
+    - **Initialized**
+    - **ContainersReady** 
+    - **Ready**: can be seen in `kubectl get pods` command too (e.g. READY 1/1)
+- What is Ready?
+  - For example a jenkin job can take 10 minutes to start, but at the time container is already running and pod is already marked ready
+  - Default behavior: kubernetes assume that when a container started, it is "ready" to serve traffic, but this is not true
+- Readiness Probe
+  - conditions to fulfill in order for a pod to be marked "ready" (override default behavior "ready" when container started)
+  - ![readiness_probe](./resources/images/material/readiness_probe.png)
+  - yaml file
+  ```yaml
+    ...
+    spec:
+      containers:
+        - ...
+          readinessProbe:
+            httpGet:
+              path: /api/ready
+              port: 8080
+  ```
+  
+### Liveness Probes
+- Periodic test whether the application within the container is healthy, if test failed container is destroyed and restarted
+- ![liveness_probe](./resources/images/material/liveness_probe.png)
+- Same as readiness probe configuration, but use `livenessProbe` field.
+```yaml
+    ...
+    spec:
+      containers:
+        - ...
+          livenessProbe:
+            httpGet:
+              path: /api/ready
+              port: 8080
+  ```
+
+### Container Logging
+- Logging in `docker`: use `-f` option for live stream of log
+  - `docker logs -f <container-id>`
+- Loggin in `k8s`
+  - `kubectl logs -f <pod-name>` 
+  - if there are multiple container within a pod, need to specify container name
+    - `kubectl logs -f <pod-name> <container-name>`
+
+### Monitor and Debug Applications
+- monitoring metrics (container resource usage, disk util, pod resource usage, network traffic, etc)
+- no k8s monitoring built in solution
+- have some Metrics Server alternatives (e.g. prometheus, elastic stack, dyna trace)
+- For CKAD, can focus on Metrics Server (other tools will be covered in CKA course):
+- Metrics Server
+  - 1 server per cluster
+  - In memory (not on disk, thus not persistent)
+  - Kubelet: contains sub-component called cAdvisor (container advisor). responsible for retrieving performance metrics from pods and exposing them to kubelet API to make them available from the metric server
+- Getting started
+```bash
+  minikube addons enable metrics-server # if using minkube
+  # other tools
+  git clone https://github.com/kubernetes-incubator/metrics-serve 
+  kubectl create -f deploy/1.8+/
+
+  # to view
+  kubectl top node
+  kubectl top pod
+```
+- ![kubectl_top](./resources/images/material/kubectl_top.png)
+
+## POD Design
+### Labels, Selectors and Annotations
+- Labels and Selectors:
+  - standard method to group things together
+  - Labels: property attached to each items (e.g. color, class)
+  - Selectors: selecting objects filter the labels (e.g. color = green & class = mammals)
+  - To define labels:
+  ```yaml
+  ...
+  metadata:
+    ...
+    labels:
+      app: app1
+      function: webserver
+    ...
+  ```
+  - get label: `kubectl get pods --selector app=App1`
+- Annotations:
+  - record other details for informatory purpose
+  - e.g buildversion, email, id, etc (for intergartion purposes)
+  ```yaml
+  ...
+  metadata:
+    ...
+    annotations:
+      buildversion: 14
+    ...
+  ```
+
+### Rolling Updates & Rollbacks in Deployments
+- Rollout and Versioning
+  - `Rollout`: when we first create a deployment, it triggers a rollout
+  - A new rollout, create new `Revision`
+  - helps keep track of the versions, and rollback to previous versions if necessary
+  - ![revision](./resources/images/material/revision.png)
+- Rollout Command
+```bash
+kubectl rollout status deployment/app-deployment # status of rollout
+
+kubectl rollout history deployment/app-deployment # revisions and history of rollouts
+```
+- Deployment Strategy:
+  - Recreate strategy: destroy deployments and then recreate, the issue is deployment will have downtime
+  - Rolling update (default): destroy and recreate 1 by 1
+- How to update deployment (`kubectl apply`)
+  - `kubectl apply -f deploy-definition.yaml`
+  - OR
+  - `kubectl set image deployment/myapp-deployment \ nginx-container=nginx:1.9.1` (NOTE: this result in deploy definiton file having different definition file)
+- Recreate vs RollingUpdate visualize:
+  - `kubectl describe deployment`
+  - ![deployment_type](./resources/images/material/deployment_type.png)
+  
+- Upgrades
+  - Upgrades: 
+  ![deployment_update](./resources/images/material/deployment_update.png)
+  - Rollback: `kubectl rollout undo deployment/myapp-deployment`
+  ![deployment_rollback](./resources/images/material/deployment_rollback.png)
+- Summarize 
+```bash
+kubectl create -f deploy.yaml
+kubectl get deployments
+
+kubectl apply -f deploy.yaml
+kubectl set image deployment/myapp-deployment \ nginx-container=nginx:1.9.1
+
+kubectl rollout undo deployment/myapp-deployment
+kubectl rollout status deployment/app-deployment
+kubectl rollout history deployment/app-deployment
+```
+
+### Updating deployment
+- https://www.udemy.com/course/certified-kubernetes-application-developer/learn/lecture/18123227
+
+### Demo: Deployment
+
+
+### Deployment strategy - Blue Green
+- Blue/Green: new version(green) deployed alongside the old version (blue). once all test are passed, switch traffic to green
+- How to implement Blue Green:
+  - use a label to the deployment, set it to the servic 
+  - when creating a new deployment, increment the version label
+  - change the service label to the new version too
+  ![blue_green](./resources/images/material/blue_green.png)
+  ![blue_green_2](./resources/images/material/blue_green_2.png)
+
+### Deployment strategy - Canary
+- Canary: only small traffic routed to the  new version. As the new deployment looks good, remove the old canary
+![canary](./resources/images/material/canary.png)
+- Implementation
+  - have service (version v1) to route to a deployment (version v1)
+  - have another deployment (version v2)
+  - How to route traffic to both versions, and only a small percentage to v2
+    1. To both Version (can use common label for both deployment (e.g. app=app-frontend))
+    2. Percentage distribution: modify the number of pods deployed in each deployment (this comes with limitation, that we need a certain number of containers in order to reach certain percentage, for example to have 99% and 1% traffic distribution, we need 100 container deployed)
+    3. Alternative: so alternative to point 2, can use [Istio](https://istio.io/) (discussed later)
+  ![canary_2](./resources/images/material/canary_2.png)
+
+### Jobs 
+-  Running a task in Docker
+```bash
+docker run ubuntu expr 3 + 2
+docker ps -a # container exited 
+```
+- Running a task in Kubernetes
+  - yaml file
+  ```yaml
+  ...
+  spec:
+    containers:
+      - name: math-add
+        image: ubuntu
+        command: ['expr','3','+','2']
+  ```
+  - execute
+  ```bash
+  kubectl create -f pod.yaml
+  kubectl get pods
+  ```
+  - output (notice RESTARTS column). kubernetes will attempt to continously restart it everytime the container exits
+  ![job_restarts](./resources/images/material/job_restarts.png)
+- **Restart Policy**: default policy used in k8s that states exited container will be restarted
+  - yaml file
+  ```yaml
+  ...
+  spec:
+    containers:
+      ...
+    restartPolicy: Never # also have OnFailure, Always(Default)
+  ```
+- Kubernetes Jobs (https://kubernetes.io/id/docs/concepts/workloads/controllers/job/)
+  - Jobs vs ReplicaSet
+    - Jobs: assigns `n` number of pods to run to completion
+    - ReplicaSet: ensures that `n` number of pods running at all times
+  - How to use Job:
+    - yaml file
+    ```yaml
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: math-add-job
+    spec:
+      template:
+        spec:
+          containers:
+            - name: math-add
+              image: ubuntu
+              command: ['expr', '3', '+', '2']
+          restartPolicy: Never
+    ```
+    - create
+    ```bash
+    kubectl create -f job.yaml
+    kubectl get jobs
+    kubectl get pods # restarts must be 0
+    ```
+    - output of job
+    ```bash
+    kubectl logs math-add-job-lsdf34n
+    ```
+    - delete job
+    ```bash
+    kubectl delete job math-add-job-lsdf34n # delete the pods as well
+    ```
+    - Multiple Pods Job
+      - yaml file
+      ```yaml
+      apiVersion: batch/v1
+      kind: Job
+      ...
+      spec:
+        completions: 3
+        parallelism: 3 # enable 3 pods to be created at the same time, by default is sequential (one at a time)
+        ...
+      ```
+      - If one of the pod fail, it will keep creating new pods until 3 completions is achieved
+
+### CronJobs
+- A Job that can be scheduled periodically(like `Crontab` in Linux)
+- Kubernetes Cronjob (https://kubernetes.io/id/docs/concepts/workloads/controllers/cron-jobs/)
+  - yaml file; consists of 3 spec fields
+    - For cronjob: scheduling, ...
+    - For job: num of jobs created, restart policy, ...
+    - For pods: container definitions, ...
+  ```yaml
+  apiVersion: batch/v1beta1
+  kind: CronJob
+  metadata:
+    name: reporting-cron-job
+  spec: # spec for cronjob
+    schedule: "*/1 * * * *"
+    jobTemplate:
+      spec: # spec for job
+        completions: 3
+        parallelism: 3
+        template:
+          spec: # spec for pod
+            containers:
+            - name: math-add
+              image: ubuntu
+              command: ['expr', '3', '+', '2']
+          restartPolicy: Never
+  ```
+  - create, view cronjobs
+  ```yaml
+  kubectl create -f cronjob.yaml 
+  kubectl get cronjob
+  ```
+
+
+
