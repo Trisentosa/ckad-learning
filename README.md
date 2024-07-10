@@ -59,6 +59,13 @@
     - [Deployment strategy - Canary](#deployment-strategy---canary)
     - [Jobs](#jobs)
     - [CronJobs](#cronjobs)
+  - [Services and Networking](#services-and-networking)
+    - [Services](#services)
+    - [Services - Cluster IP](#services---cluster-ip)
+    - [Ingress Networking](#ingress-networking)
+    - [What is rewrite-target option?](#what-is-rewrite-target-option)
+    - [Network Policies](#network-policies)
+    - [Developing Network Policies](#developing-network-policies)
 
 
 # Course 
@@ -1444,5 +1451,136 @@ docker ps -a # container exited
   kubectl get cronjob
   ```
 
+## Services and Networking
 
+### Services
+- K8s Services: enable communication between components within and outside the application. 
+![k8s_services](./resources/images/material/k8s_services.png)
+- Types of services and its usecase:
+![service_types](./resources/images/material/service_types.png)
+  - `NodePort` service: let say we host a web server in one of our pod, within the node we can access it by using curl. But for external user can't. One usecase of service is to do port forwarding from host(node) port to a port in a pod  
+  ![node_port_service](./resources/images/material/node_port_service.png) 
+  ![node_port_service_2](./resources/images/material/node_port_service_2.png)
+    - only mandatory field is `port`
+    - `nodePort` will automatically allocated from viable range (30000-32767)
+    - `targetPort` will be using same port as `port`
+    - note: `ports` is an array, meaning can have multiple port mapping within 1 service
+  ![node_port_service_3](./resources/images/material/node_port_service_3.png)
+    - since there could be many pods running application on port 80, we can utilize label and selectors so that the service only port forwards to a wanted pod
+  ![node_port_service_4](./resources/images/material/node_port_service_4.png)
+    - note: what load balancing algorithm used by service when directing load to multiple pods? random
+    - note: by default `SessionAffinity` -> True (meaning that it directs all requests from a particular end user to a specific endpoint)
+  ![node_port_service_5](./resources/images/material/node_port_service_5.png)
+    - service span accross nodes by default (no additional configuration is needed)
+  - `ClusterIP`: create virtual IP inside the cluster to enable communication within application within the cluster (more next section)
+  - `LoadBalancer`: provision load balancer for our application 
 
+### Services - Cluster IP
+- Cluster IP: what we are trying to solve: internal communication between pods
+![cluster_ip](./resources/images/material/cluster_ip.png)
+- Cluster IP Service Definition:
+![cluster_ip_2](./resources/images/material/cluster_ip_2.png)
+
+### Ingress Networking
+- 2 General Approach without ingress
+  - Datacenter:
+  ![ingress_datacenter](./resources/images/material/ingress_datacenter.png)
+  - Cloud Platform:
+  ![ingress_cloud](./resources/images/material/ingress_cloud.png)
+    - the gcp load balancer have it's own external IP that can be used by end user
+    - the complexity grew more as we deployed new service in a cluster, this mean we need to create another load balancer. On top of that another proxy before the load balancer to load the traffic based on route for example.
+- Ingress: helps user to access application through a single externally accessible url based on the url path. 
+  - Think of ingress as L7 load balancer built in to k8s cluster. Configurable simply similar to other object in k8s
+  ![ingress](./resources/images/material/ingress.png)
+    - note that ingress is within a cluster, we need to still expose it outside the cluster using `NodePOrt` or cloud native `LoadBalancer` service (just a one time configuration)
+    - After that, authentication, SSL, load balancing, etc in the ingress controller
+  - Before going in deeper, need to think how we would do it without ingress controller:
+    - lecturer said that he would use a reverse proxy solution (e.g. nginx, haproxy, traefik), deploy them in k8s cluster and configure them to route traffic to other services
+    - Ingress is implemented in a similar way 
+  - Ingress Controller vs Ingress Resources
+  ![ingress_2](./resources/images/material/ingress_2.png)
+    - ingress controller: a solution (e.g. nginx) deployed in k8s cluster
+    - ingress resources: configuration of those solution, decoupled with each other
+  - Ingress Controller
+    - What are the options ?
+      - Nginx (supported and what we're gonna used)
+      - GCE (GCP HTTP(s) load balancer) (supported)
+      - Contour
+      - HAProxy
+      - Traefik
+      - Istio
+    - Not just load balancer, but also have function to monitor new definitions and ingress resources and adjust the configuration accordingly
+    ![ingress_controller](./resources/images/material/ingress_controller.png)
+    - What we need
+      - Deployment: deploy the nginx image
+      - ConfigMap: store the nginx configurations (such as err-log-path, keep-alive, ssl-protocols)
+      - Service:  `NodePort` exposing the deployment, linking the service to the deployment
+      - ServiceAccount: assigning right permission to access these objects
+  - Ingress Resource
+    - set of rules and configurations applied on the ingress controller
+    - Types of rules:
+    ![ingress_rules](./resources/images/material/ingress_rules.png)
+      - single application 
+      ![ingress_single](./resources/images/material/ingress_single.png)
+      - based on routes 
+      ![ingress_route](./resources/images/material/ingress_route.png)
+      - based on domain name
+      ![ingress_domain](./resources/images/material/ingress_domain.png)
+      - Everything else
+- Ingress Article: https://www.udemy.com/course/certified-kubernetes-application-developer/learn/lecture/28046958#overview
+
+### What is rewrite-target option?
+https://www.udemy.com/course/certified-kubernetes-application-developer/learn/lecture/16716434#overview
+
+### Network Policies
+- Ingress Vs Egressing (direction where the traffic originated from, the response of the request don't really matter)
+  - Ingress: incoming traffic from user
+  - Egress: outgoing request to the app server
+  ![ingress_egress](./resources/images/material/ingress_egress.png)
+  ![ingress_egress_2](./resources/images/material/ingress_egress_2.png)
+- Network Security
+  ![network_security](./resources/images/material/network_security.png)
+  - By deafult k8s implement "All ALlow" rule that basically allow within a cluster for pods to communicate with each other (span across nodes, using virtual private network)
+  - What if we want to limit the access of a pod from a certain pod? for example we want our db pod to only be accessed by backend pod. we ue `Network Policy`
+    - in this case "Allow Ingress Traffic From API Pod on Port 3306"
+    - How to apply network policy on pod? label and selectors
+- `Network Policy` definition file:
+  ![network_policy](./resources/images/material/network_policy.png) 
+- Solution that support Network Policies:
+  - Kube-router
+  - Calico
+  - Romana
+  - Weave-net
+
+### Developing Network Policies
+- Blocks all request to db except from api pod
+![network_policy_2](./resources/images/material/network_policy_2.png) 
+- Based on namespace: for example only api pod from the prod namespace
+![network_policy_3](./resources/images/material/network_policy_3.png) 
+- Allow external backup server to access (`ipBlock`)
+![network_policy_4](./resources/images/material/network_policy_4.png)
+- OR vs AND rule:  if using dash(-) within the `from` directive, will treat as OR, if not using dash will be treated as AND
+  - OR: either pod == api-pod or namespace == prod
+  ```yaml
+  ...
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              name: api-pod
+        - namespaceSelector:
+            matchLabels:
+              name: prod
+  ```
+  - AND: pod === api-pod and namespace == prod
+  ```yaml
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              name: api-pod
+          namespaceSelector:
+            matchLabels:
+              name: prod
+  ```
+![network_policy_5](./resources/images/material/network_policy_5.png)
