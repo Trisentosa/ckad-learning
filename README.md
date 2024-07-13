@@ -66,6 +66,18 @@
     - [What is rewrite-target option?](#what-is-rewrite-target-option)
     - [Network Policies](#network-policies)
     - [Developing Network Policies](#developing-network-policies)
+  - [State Persistence](#state-persistence)
+    - [Volumes](#volumes)
+    - [Persistent Volumes](#persistent-volumes)
+    - [Persistent Volume Claims](#persistent-volume-claims)
+    - [Practice Test - Persistent Volumes](#practice-test---persistent-volumes)
+    - [Note on Optional Topics](#note-on-optional-topics)
+    - [Storage Classes](#storage-classes)
+    - [Practice Test - Storage Class](#practice-test---storage-class)
+    - [Why Stateful Sets ?](#why-stateful-sets-)
+    - [Stateful Sets Introduction](#stateful-sets-introduction)
+    - [Headless Services](#headless-services)
+    - [Storage in StatefulSets](#storage-in-statefulsets)
 
 
 # Course 
@@ -1584,3 +1596,174 @@ https://www.udemy.com/course/certified-kubernetes-application-developer/learn/le
               name: prod
   ```
 ![network_policy_5](./resources/images/material/network_policy_5.png)
+
+## State Persistence
+
+### Volumes
+- https://kubernetes.io/docs/concepts/storage/volumes
+- `Volumes` in Docker: 
+  - data in docker is transient by nature (exist only short period of time)
+  - to make persist data, we use `Volume`, where data would persist after container deleted
+  - Similarly, pods in k8s also transient, similarly we attach volume to a pod
+- Implementation of `Volumes`
+  - First, we implement a simple solution where the container's volume is mounted to a location in the host's system. 
+  - volume.yaml (`volumeMounts` (container's volume mounting config) and `volumes` (your volume definition config) directive)
+  ```yaml
+  apiVersion: v1
+  kind: Pod
+  metadata:
+    name: random-number-generator
+  spec:
+    containers:
+    - image: alpine
+      name: alpine
+      command: ["/bin/sh", "-c"]
+      args: ["shuf -i 0-100 -n 1 >> /opt/number.out;"]
+      volumeMounts:
+      - mountPath: /opt
+        name: data-volume
+    volumes:
+    - name: data-volume
+      hostPath:
+        path: /data
+        type: Directory
+  ```
+  - The weakness of this is of course, if we deploying pod in different nodes(hosts), the data would be different on each of those node
+  - To solve this issue, there are external replication cluster storage solution, such as: (https://kubernetes.io/docs/concepts/storage/#types-of-volumes)
+    - NFS
+    - GlusterFS
+    - Flocker
+    - Ceph IO
+    - ScaleIO
+    - AWS elastic block volume(EBS)/GCP persistent disk/Azure
+  - Example of AWS EBS solution: this way, all the pods mounting using this volume will use data stored in AWS EBS instead of host's system
+  ```yaml
+  volumes:
+  - name: data-volume
+    awsElasticBlockStore:
+      volumeID: <volume-id>
+      fsType: ext4
+  ```
+
+### Persistent Volumes
+- When volume is created, we configured volume in pod definition file
+- In large env, this is inefficient. each time new pod is created need to reconfigure the volume again
+- Centralized solution for this is `Persistent Volume`, which is cluster wide pool of storage volumes configured by admin
+  - user can select from these pools using `Persistent Volume Claim` (next section)
+  - to create `Persistent Volume`
+  ```yaml
+  apiVersion: v1
+  kind: PersistentVolume
+  metadata:
+    name: pv-vol1
+  spec:
+    accessModes:
+      - ReadWriteOnce # ReadOnlyMany/ReadWriteOnce/ReadWriteMany
+    capacity:
+      storage: 1Gi
+    awsElasticBlockStore:
+      volumeID: <volume-id>
+      fsType: ext4
+  ``` 
+  - create persistent volume
+  ```bash
+  kubectl create -f pv-definition.yaml
+  kubectl get persistentvolume
+  ```
+
+### Persistent Volume Claims
+- As mentioned in `Persistent Volume`, the `Persistent Volume Claim` is made by user so user can use the storage provided by the `Persistent Volume`
+- 1 Claim --binded--> exactly 1 Persistent Volume (1 to 1 relationship) For claim to be properly binded, need to satisfy the requirement of the claim, such as
+  - sufficient capacity
+  - access modes
+  - volume modes
+  - storage class
+  - etc
+- If there are multiple possible matches for the claim, can always use `selector` and `label` to match to a specific volume
+- Smaller claim may get bound to a larger volume if no other option available, note that this will waste space since no other claim can use that volume anymore 
+- If no volume is available for the claim, the claim will go onto a pending state, until a new volume is created and satisfy the requirement
+- To create:
+  - claim definition
+  ```yaml
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata: 
+      name: myclaim
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 500Mi
+    ```
+  - persistent volume definition 
+  ```yaml
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: pv-vol1
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      capacity:
+        storage:
+          1Gi
+      awsElasticBlockStore:
+        volumeID: <volume-id>
+        fsType: ext4
+    ```
+    - from the config, the claim is satisfied to the volume, so now the claim is binded
+    - Deleting PVC
+    ```bash
+    kubectl delete persistentvolumeclaim myclaim
+    ```
+      - note: after deleted, by default the persistent volume will `Retain` (meaning that it will still exist until manually deleted by admin)
+      - but not available for reused by other claims
+      - but other delete option can be:
+        - `Delete`: volume is deleted after claim is removed
+        - `Recycle`: volume still exists, but now can be used by other claim to use
+      ```yaml
+      persistentVolumeReclaimPolicy: Retain # Retain/Delete/Recycle
+      ```
+
+### Using PVCs in Pods
+- https://kubernetes.io/docs/concepts/storage/persistent-volumes/#claims-as-volumes
+- Once you create a PVC use it in a POD definition file by specifying the PVC Claim name under `persistentVolumeClaim` section in the volumes section like this:
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+spec:
+  containers:
+    - name: myfrontend
+      image: nginx
+      volumeMounts:
+      - mountPath: "/var/www/html"
+        name: mypd
+  volumes:
+    - name: mypd
+      persistentVolumeClaim:
+        claimName: myclaim
+```
+
+### Practice Test - Persistent Volumes
+
+TODO: SKIP
+
+### Note on Optional Topics
+- upcoming section on storage classes and stateful sets are optional (not included in CKAD exams)
+
+### Storage Classes
+
+### Practice Test - Storage Class
+
+TODO: SKIP
+
+### Why Stateful Sets ?
+
+### Stateful Sets Introduction
+
+### Headless Services
+
+### Storage in StatefulSets
