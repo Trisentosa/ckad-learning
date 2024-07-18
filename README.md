@@ -1755,14 +1755,66 @@ TODO: SKIP
 - upcoming section on storage classes and stateful sets are optional (not included in CKAD exams)
 
 ### Storage Classes
+- with PV <-> PVC flow, we still need to manually configure the disk from the cloud platform. like:
+  ```bash
+  gcloud beta comput disks create \
+    --size 1GB
+    --region us-east1
+    pd-disk
+  ```
+- with storage classes, can define provisioners (such as google storage), and automatically provision storage in google storage directly attach it to pod (Dynamic Provisioning)
+- To create storage classes:
+  - sc-definition.yaml
+  ```yaml
+  apiVersion: storage.k8s.io/v1
+  kind: StorageClass
+  metadata: 
+    name: google-storage
+  provisioner: kubernetes.io/gce-pd
+
+  ```
+  - with Storage class (SC), we don't need to create our own pv definition, as it will automatically created by SC when user requested a PVC
+  ![storage_class](./resources/images/material/storage_class.png)
 
 ### Practice Test - Storage Class
 
 TODO: SKIP
 
 ### Why Stateful Sets ?
+- How database replication works:
+  1. Single Master Multi Slave Topology: all writes command served by master server, read served by either master/slave
+     1. Setup master first and then slaves
+     2. Clone data from master to slave-1
+     3. Enable continuous replication from master to slave-1
+     4. Wait for slave-1 to be ready 
+     5. Clone data from slave-1 to slave-2 (why not master to slave-2 ? because would be costly on the network interface of the master server)
+     6. Enable continous replication from master to slave-2
+     7. Configure master address on Slave (MASTER_HOST=mysql-master)
+- In k8s how to do this?
+  - if we just use regular deployment pod, the pod is generated with random names. Meaning we can't assign it as master (since if that pod is crashes, we don't have any more master)
+  - So need a reliable way of getting assigning a pod as the master, this is where stateful sets come in
+  - `Stateful Sets`: is similar with deployment sets (create pods, scale up, scale down, rolling update/rollbacks ) except with a minor difference. 
+    - In stateful set, pod is created in sequential order (after first pod deployed, it must be in running and ready state before the second pod can be deployed)
+    - Stateful set also assign a unique sequential index (starting from 0 for the first pod). for example is deployment name is `mysql`, then first pod is always be `mysql-0` and so on. No more random names
 
 ### Stateful Sets Introduction
+- To create a stateful set, is just same as deployment (just different `kind` field)
+  ```stateful-definition.yml
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    name: mysql
+    ...
+  ```
+- To interact with stateful sets 
+```bash
+kubectl create -f statefulset-definition.yml #create
+kubectl scale statefulset mysql --replica=5 # will scale in sequential order
+kubectl scale statefulset mysql --replica=3 # if scale down, scale it in reverse sequeential order (delete pod-5 -> delete pod-4)
+kubectl delete statefulset mysql # also delete in reverse sequential order
+
+#those are DEFAULT behavior of stateful set. To overwrite this behavior, can specify field podManagementPolicy: Parallel
+``` 
 
 ### Headless Services
 
