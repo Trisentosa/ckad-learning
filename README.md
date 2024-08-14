@@ -78,6 +78,36 @@
     - [Stateful Sets Introduction](#stateful-sets-introduction)
     - [Headless Services](#headless-services)
     - [Storage in StatefulSets](#storage-in-statefulsets)
+  - [Security](#security)
+    - [Authentication, Authorization, and Admission Control](#authentication-authorization-and-admission-control)
+    - [Authentication](#authentication)
+    - [Setting up Basic Authentication](#setting-up-basic-authentication)
+    - [Important Updates](#important-updates)
+    - [KubeConfig](#kubeconfig)
+    - [Practice Test \& Solution - KubeConfig](#practice-test--solution---kubeconfig)
+    - [API Groups](#api-groups)
+    - [Authorization](#authorization)
+    - [Role Based Access Controls](#role-based-access-controls)
+    - [Practice Test \& Solution - Role Base Access Controls](#practice-test--solution---role-base-access-controls)
+    - [Cluster Roles](#cluster-roles)
+    - [Practice Test \& Solution - Cluster Roles](#practice-test--solution---cluster-roles)
+    - [Admission Controllers](#admission-controllers)
+    - [Labs \& Solution - Admission Controllers](#labs--solution---admission-controllers)
+    - [Validating and Mutating Admission Controllers](#validating-and-mutating-admission-controllers)
+    - [Labs \& Solution - Validating and Mutating Admission Controllers](#labs--solution---validating-and-mutating-admission-controllers)
+    - [API Versions](#api-versions)
+    - [API Deprecations](#api-deprecations)
+    - [Lab \& Solution - API Versions/Deprecations](#lab--solution---api-versionsdeprecations)
+    - [Custom Resource Definition](#custom-resource-definition)
+    - [Practice Test - Custom Resource Definition](#practice-test---custom-resource-definition)
+    - [Custom Controllers](#custom-controllers)
+    - [Operator Framework](#operator-framework)
+  - [Helm Fundamentals](#helm-fundamentals)
+    - [Helm Introduction](#helm-introduction)
+    - [Install Helm](#install-helm)
+    - [Labs \& Solution - Install Helm](#labs--solution---install-helm)
+    - [Helm Concepts](#helm-concepts)
+    - [Labs \& Solution - Helm Concepts](#labs--solution---helm-concepts)
 
 
 # Course 
@@ -1818,4 +1848,135 @@ kubectl delete statefulset mysql # also delete in reverse sequential order
 
 ### Headless Services
 
+- From previous section, we know that we can create master-slave database topology using stateful set. Remember that in order for other service to access this database, we need to make a service on top of this stateful set. Note that:
+  - Service acts as a DNS for other component and it will load balance the request to all the database pod
+  - BUT, as we know only master is able to handle write request. So, how do we differentiate this between slave and master from service perspective?
+  - How to reach the db directly ?
+    - Assuming within the same cluster, we can target the DB throught its IP directly (but IP is dynamic, so we can't use it)
+    - Each pod has its own DNS address, but the DNS address includes IP in its name (e.g. `10-40-1-12.default.pod.cluster.local`) Again, IP is dynamic, so is the pod's DNS address.
+  - This is why we need `Headless Service`
+- `Headless Service`: is simply, a service that purpose is to give a pod a DNS entry (no IP, no load balancing)
+  - Format of podname DNS entry : 
+    - format
+    ```
+    podname.headless-service-name.namespace.svc.cluster-domain.example
+    ```
+    - example
+    ```
+    mysql-0.mysql-h.default.svc.cluster.local
+    ```
+  - To create Headless service (need to set `clusterIP` to None):
+  ```yaml
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: mysql-h
+  spec:
+    ports:
+      - port: 3306
+    selector:
+      app: mysql
+    clusterIP: None
+  ```
+  - For the pod itself, requires 2 conditions to be met:
+    - It has `subdomain` field == `name` field of headless service
+    - It has `hostname` field
+    - Example:
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: myapp-pod
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql
+      subdomain: mysql-h
+      hostname: mysql-pod
+    ```
+    - With this, each pod will get its own DNS entry (e.g. `mysql-pod.mysql-h.default.svc.cluster.lcoal`)
+    - However, this will not solve our initial problem. When we create a deployment definition with this pod definition. It will give ALL the pods the same DNS entry name. Again we need to use stateful set instead of a normal deploy definition
+  - Stateful Set and headless service:
+    - `spec`-> `serviceName` (stateful set) == `metadata`->`name` (headless service)
+    - No need to put the `subdomain` and `hostname` in the pod definition of the stateful set
+
 ### Storage in StatefulSets
+- Address an issue with our current storage understanding so far:
+  - Regular Flow: (SC - optional) -> PV -> PVC -> POD 
+  - With stateful set: (SC - optional) -> PV -> PVC -> Stateful Sets -> Pod
+    - With stateful set, all pods within the set is assigned to one PVC
+    - What if we want to have each stateful set pod assigned to different PVC?
+    - This is why we need `volumeClaimTemplates` 
+  - `VolumeClaimTemplate` is basically a field in your `StatefulSet` where you can just put your PVC definition there
+  - With it, each pod in satteful set will be assigned its own PVC
+
+## Security
+
+### Authentication, Authorization, and Admission Control
+
+### Authentication
+
+### Setting up Basic Authentication
+
+### Important Updates
+
+### KubeConfig
+
+### Practice Test & Solution - KubeConfig
+TODO: SKIP
+
+### API Groups
+
+### Authorization
+
+### Role Based Access Controls
+
+### Practice Test & Solution - Role Base Access Controls
+TODO: SKIP
+
+### Cluster Roles
+
+### Practice Test & Solution - Cluster Roles
+TODO: SKIP
+
+### Admission Controllers
+
+### Labs & Solution - Admission Controllers
+TODO: SKIP
+
+### Validating and Mutating Admission Controllers
+
+### Labs & Solution - Validating and Mutating Admission Controllers
+TODO: SKIP
+
+### API Versions
+
+### API Deprecations
+
+### Lab & Solution - API Versions/Deprecations
+TODO: SKIP
+
+### Custom Resource Definition
+
+### Practice Test - Custom Resource Definition
+TODO: SKIP
+
+### Custom Controllers
+
+### Operator Framework
+
+## Helm Fundamentals
+
+### Helm Introduction
+
+### Install Helm
+
+### Labs & Solution - Install Helm
+TODO: SKIP
+
+### Helm Concepts
+
+### Labs & Solution - Helm Concepts
+TODO: SKIP
