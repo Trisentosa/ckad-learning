@@ -82,7 +82,6 @@
     - [Authentication, Authorization, and Admission Control](#authentication-authorization-and-admission-control)
     - [Authentication](#authentication)
     - [Setting up Basic Authentication](#setting-up-basic-authentication)
-    - [Important Updates](#important-updates)
     - [KubeConfig](#kubeconfig)
     - [Practice Test \& Solution - KubeConfig](#practice-test--solution---kubeconfig)
     - [API Groups](#api-groups)
@@ -1534,7 +1533,7 @@ docker ps -a # container exited
 - Ingress: helps user to access application through a single externally accessible url based on the url path. 
   - Think of ingress as L7 load balancer built in to k8s cluster. Configurable simply similar to other object in k8s
   ![ingress](./resources/images/material/ingress.png)
-    - note that ingress is within a cluster, we need to still expose it outside the cluster using `NodePOrt` or cloud native `LoadBalancer` service (just a one time configuration)
+    - note that ingress is within a cluster, we need to still expose it outside the cluster using `NodePort` or cloud native `LoadBalancer` service (just a one time configuration)
     - After that, authentication, SSL, load balancing, etc in the ingress controller
   - Before going in deeper, need to think how we would do it without ingress controller:
     - lecturer said that he would use a reverse proxy solution (e.g. nginx, haproxy, traefik), deploy them in k8s cluster and configure them to route traffic to other services
@@ -1915,23 +1914,232 @@ kubectl delete statefulset mysql # also delete in reverse sequential order
 ## Security
 
 ### Authentication, Authorization, and Admission Control
+- Security Primitives in k8s
+  - Secure Hosts
+    - root access disabled
+    - password based authentication disabled
+    - only SSH key based authentication
+  - **Secure Kubernetes**
+    - `kube-apiserver`
+      - who can access ? different ways to assign access:
+        - Files - username and passwords
+        - Files - username and tokens
+        - Certificates
+        - External authentication providers - LDAP
+        - Service Accounts
+      - what can they do ?
+        - RBAC Authorization
+        - ABAC Authorization
+        - Node Authorization
+        - Webhook Mode
+    - TLS Certificates:
+      - All communication between communication in a cluster are using TLS certificates, such as between `kube-apiserver` and:
+        - ETCD cluster
+        - Kube Controller Manager
+        - Kube Scheduler
+        - Kubelet
+        - Kube Proxy
+    - Network Policies
+      - Access between pods within a cluster
 
 ### Authentication
+- Securing access to k8s cluster using authentication mechanism
+  - Different potential user of k8s cluster: admins, developers, ~~end users~~, bots
+  - We can eliminate end users from our discussion because the security is handled by internally by the application itself
+  - We only discuss access for administrative purposes, which includes:
+    - User (admins, developers): can't be managed by k8s, we will focus on this for this part
+    - Service Accounts (bots): can be managed by k8s, check `Service Account` section to review
+  - How `kube-apiserver` authenticate user?
+    - static password file (NOT RECOMMENDED)
+      - save auth information in a csv file, with the column order -> password, username, user_id, group(optional)
+      - ![static_password](./resources/images/material/static_password.png)
+      - then restart the server
+      - If using `kubeadm`, it will automatically restart the server after changing the kubeapi definition file
+      - ![kubeadm_static_password](./resources/images/material/kubeadm_static_password.png)
+      - Autenticate user when accessing the api server
+      ```bash
+      curl -v -k https://master-node-ip:6443/api/v1/pods -u "user1:password123"
+      ```
+    - static token file (NOT RECOMMENDED)
+      - similar setup with static password, but use token instead of password
+      - ![static_token](./resources/images/material/static_token.png)
+    - certificates
+    - 3rd party authentication protocols (identity services)
+
 
 ### Setting up Basic Authentication
-
-### Important Updates
+- Read about `kubeadm`: https://kubernetes.io/id/docs/reference/setup-tools/kubeadm/
+- Article: https://www.udemy.com/course/certified-kubernetes-application-developer/learn/lecture/31756514#content
 
 ### KubeConfig
+- Note: certificate is not covered in this course (in CKA), but generally we can pass it as an option (curl) or using kubectl. What we need to know is that it is really repetitive to do this everytime 
+  - ![certificate](./resources/images/material/certificate.png)
+- We can move the certificate configuration to a `KubeConfig` file
+  - stored in a directory under: `$HOME/.kube/config`
+  - When we have a config in this, we don't need to put the certificate option. That is why so far we don't need to specify certificate when doing any operation with `kubectl`
+  - ![kubeconfig_file](./resources/images/material/kubeconfig_file.png)
+- KubeConfig format:
+  - Contains 3 parts: Clusters, Contexts, Users
+    - Clusters: cluster you need access to
+    - Users: user accounts which have access to the clusters
+    - Contexts: connector between Clusters and Users (which user can access which cluster)
+    - ![kubeconfig_format](./resources/images/material/kubeconfig_format.png)
+- KubeConfig File example:
+  - ```yaml
+    apiVersion: v1
+    kind: Config
+    
+    current-context: my-kube-admin@my-kube-playground
+
+    clusters:
+    - name: my-kube-playground
+      cluster:
+        certificate-authority: ca.crt
+        server: https://my-kube-playground:6443
+    
+    contexts:
+    - name: my-kube-admin@my-kube-playground
+      context:
+        cluster: my-kube-playground
+        user: my-kube-admin
+        namespace: prod # NOTE: optinal field, if define will use this namespace when using this context
+    
+    users:
+    - name: my-kube-admin
+      user:
+        client-certificate: admin.crt
+        client-key: admin.key
+    
+    ```
+  - `current-context`: define which context to use by default 
+- Access config from kubectl
+  - `kubectl config view`
+  - `kubectl config view --kubeconfig=my-custom-config`
+  - `kubectl config use-context prod-user@production`: switch the `current-context` field of the config file
+- Saving the certificate data directly
+  - Instead of using `certificate-authority` field and specifying the location of the certificate
+  - Can also use `certificate-authority-data`:
+  ```bash
+  cat ca.crt | base64 # then can paste the output in `certificate-authority-data` field
+  echo "<encoded-cert-string>" | base64 --decode # decode encoded cert 
+  ```
 
 ### Practice Test & Solution - KubeConfig
 TODO: SKIP
 
 ### API Groups
+- Accessing kubernetes API server (via REST or kubectl), this section we focus on rest
+  - via REST (`curl`), there are 2 main groups:
+    - `version`: `curl https://kube-master:6443/version`
+    - `api`: `curl https://kube-master:6443/api/v1/pods`
+      - Itself is divided into 2
+        - Core (`api`)
+        - ![core_api](./resources/images/material/core_api.png)
+        - Named (`apis`)
+        - ![named_api](./resources/images/material/named_api.png)
+    - There are other groups such as:
+      - `/metrics`
+      - `healthz`
+      - `/logs`
+  - To view the list of groups
+  ```bash
+  curl http://localhost:6443 -k
+  curl http://localhost:6443/apis -k | grep "name" # get resources of group
+  ```
+- `kubectl proxy`
+  - Why? when you use curl, most likely you will need to specify the certificate option in the command
+  - If you want to use certificate provided in your `kubeconfig` file, you can use `kubectl proxy` instead 
+  - To start, simply
+  ```bash
+  kubectl proxy
+  ```
+- Kube proxy vs `kubectl proxy`
+  - Kube proxy: enable connectivity between pods and services accross different nodes
+  - `kubectl proxy`: HTTP proxy service created by kubectl to access the kube api server
 
 ### Authorization
+- Authorization meaning: Once user is authentictated, what can they do.
+- Authorization mechanisms:
+  - Node
+    - User -> Kube API <- kubelet 
+      - `kubelet` privileges: 
+        - Read: services, endpoints, nodes, pods
+        - Write: Node status, pod status, events
+    - Node Authorizer: 
+      - in certificate (which we don't discuss), the `kubelet` must be of group `SYSTEM:NODES`, named withprefixed with `system:node`
+        - e.g. `system:node:node01`
+      - Any request coming to `Kube API` from user prefixed with `system:node` and belong to `SYSTEM:NODES` group is granted `kubelet` privileges:
+  - ABAC (Attribute Based Access Control)
+    ![ABAC](./resources/images/material/abac.png)
+    - difficult to manage. Whenever the policy file changed, need to restart kube api server to take effect.
+  - RBAC (Role Based Access Control)
+    - Privilege per role instead per user
+    - Whenever need to update, we change the role privilege
+    ![RBAC](./resources/images/material/rbac.png)
+  - Webhook 
+    - Outsource authorization using third party service (e.g. Open Policy Agent)
+  - 2 more modes: `AlwaysAllow` and `AlwaysDeny`
+    - Default `AlwaysAllow`
+    - How to configure this? in kube-apiserver start option
+      - ![always_allow](./resources/images/material/always_allow.png)
+    - Authorization mode chain:
+      - If failed, go to next in chain. If success, grant access
+      - ![authorization_chain](./resources/images/material/authorization_chain.png)
 
 ### Role Based Access Controls
+- How to create a role:
+  - role object config file:
+    ```yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: developer
+    rules:
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["list", "get", "create", "update", "delete"]
+    - apiGroups: [""]
+      resources: ["ConfigMap"]
+      verbs: ["create"]
+    ```
+    - meaning: user with this "developer" role can:
+      - view pods
+      - create pods
+      - delete pods
+      - create config maps
+  - role binding: link user object to a role
+    ```yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: devuser-developer-binding
+    subjects:
+      - kind: User
+        name: dev-user
+        apiGroup: rbac.authorization.k8s.io
+    roleRef:
+      kind: Role
+      name: developer
+      apiGroup: rbac.authorization.k8s.io
+    ```
+    - meaning: user `dev-user` now have `developer` role
+    - Role binding is within scope of `Namespace`, meaning user can only have access to objects within the namespace (default: `default` namespace)
+- View RBAC
+  - ```bash
+    kubectl get roles
+    kubectl get rolebindings
+    kubectl describe role developer # detail of a role
+    kubectl describe rolebinding dev-user # detail of rolebinding
+    ``` 
+- Check Access
+  - ```bash
+    kubectl auth can-i create deployments #output is "yes" or "no"
+    kubectl auth can-i delete nodes
+    kubectl auth can-i create deployments --as dev-user # check auth of another role
+    ```
+- Restrict resources within namespace
+  - ![restrict_resource](./resources/images/material/restrict_resource.png)
+
 
 ### Practice Test & Solution - Role Base Access Controls
 TODO: SKIP
