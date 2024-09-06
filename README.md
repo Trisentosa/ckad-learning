@@ -2178,13 +2178,69 @@ TODO: SKIP
 ## Helm Fundamentals
 
 ### Helm Introduction
+- Helm: basically package manager for k8s
+  - https://helm.sh/docs/
+  - Can associate object to a package(in most case, is your app)
+  - Once associated, helm will look at those objects (e.g. service, pvc, pv, deployment, secret) and adjust their configuration accordingly whenever a change is made
+- Basic usage: (e.g. app called "wordpress")
+  ```bash
+  helm install wordpress ...
+  helm upgrade wordpress ...
+  helm rollback wordpress ...
+  help uninstall wordpress ...
+  ```
+- How to configure our package (e.g. "wordpress" app)
+  - can store in a file called `values.yaml`
+  ```yaml
+  wordpressUsername: user
+  wordpressEmail: user@example.com
+  wordpressFirstName: FirstName
+  wordpressLastName: LastName
+  ```
 
 ### Install Helm
+- Pre-requirestes:
+  - functional k8s cluster
+  - kubectl utility configured to your k8s cluster
+```bash
+sudo snap install helm 
+sudo snap install helm  --classic # using classic will give the app more access to the system. helm can access the kubeconfig file in the home directory
+```
 
 ### Labs & Solution - Install Helm
 TODO: SKIP
 
 ### Helm Concepts
+- Helm use templating, where we can assign field variables to our object configurations
+- Template variable format: {{ .Values.<field> }}
+- Template variable is in `values.yaml`
+- Example:
+  -  ![helm_concept_1](./resources/images/material/helm_concept_1.png)
+-  Together, templates + values.yaml file = `Helm Chart`
+-  `Helm Chart`
+   -  ![helm_chart](./resources/images/material/helm_chart.png)
+   -  `chart.yaml`: metadata of the chart itself
+-  https://artifacthub.io/ : repository of existing helm charts
+-  Searching Helm:
+   -  we can search from chart repository
+   -  to search via terminal:
+   ```bash
+   helm search hub wordpress # helm search <repository> <chart>. hub is community driven repository, there are other repository
+   helm repo add bitnami https://charts.bitnami.com/bitnami # add bitnami repository
+   helm search repo wordpress # list existing chart from all of repo you have added
+   helm repo list
+   ```
+-  Release:
+   -  helm install <release-name> <chart-name>
+   -  ![helm_release](./resources/images/material/helm_release.png)
+-  Other Helm commands
+```bash
+helm list # list of installed packages
+helm uninstall my-release # uninstall package
+helm pull --untar bitnami/wordpress # DOWNLOAD, but not install package (to install, use install like prev example)
+ls wordpress # list package after downloaded
+helm install release-4 ./wordpress
+```
 
 ### Labs & Solution - Helm Concepts
 TODO: SKIP
